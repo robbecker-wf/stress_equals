@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo dart gen.dart $1 && dart2js -v -o bin/main.dart.js -O3 --csp bin/main.dart
+dart gen.dart $1 && dart2js -v -o bin/main.dart.js -O3 --csp bin/main.dart
