@@ -15,4 +15,4 @@ jobs:
     - name: Install dependencies
       run: pub get
     - name: Run it
-      run: ./try 100
+      run: export DART_VM_OPTIONS="--print_metrics --old-gen-heap-size=32000" && dart gen.dart 7500 && dart2js -v -o bin/main.dart.js -O3 --csp bin/main.dart
