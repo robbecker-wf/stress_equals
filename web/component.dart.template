@@ -1,0 +1,97 @@
+import 'dart:html' as html;
+
+import 'package:w_flux/w_flux.dart';
+import 'package:over_react/over_react.dart';
+import 'package:over_react/react_dom.dart' as react_dom;
+
+part 'componentXX.over_react.g.dart';
+
+Future<void> mane() {
+  // render it
+  var actionsXX = FluxActionsXX();
+  var storeXX = FluxStoreXX(actionsXX);
+  var compXX = (FluxComponentXX()
+    ..actions = actionsXX
+    ..store = storeXX)();
+  react_dom.render(
+      ErrorBoundary()(compXX), html.querySelector('#content-container'));
+}
+
+
+class FluxStoreXX extends Store {
+  FluxActionsXX _actions;
+  var storeField1 = 1;
+  var storeField2 = 1;
+  var storeField3 = 1;
+  var storeField4 = 1;
+  var storeField5 = 1;
+  var storeField6 = 1;
+  var storeField7 = 1;
+  var storeField8 = 1;
+  var storeField9 = 1;
+
+  FluxStoreXX(this._actions) {
+    triggerOnActionV2(_actions.change, _change);
+  }
+
+  void _change(int amount) {
+    storeField1 += amount % DateTime.now().millisecondsSinceEpoch;
+    storeField2 += amount % DateTime.now().millisecondsSinceEpoch;
+    storeField3 += amount % DateTime.now().millisecondsSinceEpoch;
+    storeField4 += amount % DateTime.now().millisecondsSinceEpoch;
+    storeField5 += amount % DateTime.now().millisecondsSinceEpoch;
+    storeField6 += amount % DateTime.now().millisecondsSinceEpoch;
+    storeField7 += amount % DateTime.now().millisecondsSinceEpoch;
+    storeField8 += amount % DateTime.now().millisecondsSinceEpoch;
+    storeField9 += amount % DateTime.now().millisecondsSinceEpoch;
+  }
+}
+
+UiFactory<FluxComponentXXProps> FluxComponentXX =
+    castUiFactory(_$FluxComponentXX); // ignore: undefined_identifier
+
+class FluxComponentXXProps = UiProps
+    with FluxUiPropsMixin<FluxActionsXX, FluxStoreXX>;
+
+class FluxActionsXX {
+  final ActionV2<int> change = ActionV2();
+}
+
+class FluxComponentXXComponent extends FluxUiComponent2<FluxComponentXXProps> {
+  @override
+  Object render() {
+    final closureVariable = props.store.storeField1;
+
+    void closureXX_1(_) => props.actions.change(props.store.storeField1 + closureVariable);
+    void closureXX_2(_) => props.actions.change(props.store.storeField2 + closureVariable);
+    void closureXX_3(_) => props.actions.change(props.store.storeField3 + closureVariable);
+    void closureXX_4(_) => props.actions.change(props.store.storeField4 + closureVariable);
+    void closureXX_5(_) => props.actions.change(props.store.storeField5 + closureVariable);
+    void closureXX_6(_) => props.actions.change(props.store.storeField6 + closureVariable);
+    void closureXX_7(_) => props.actions.change(props.store.storeField7 + closureVariable);
+    void closureXX_8(_) => props.actions.change(props.store.storeField8 + closureVariable);
+    void closureXX_9(_) => props.actions.change(props.store.storeField9 + closureVariable);
+
+    return (Dom.div()
+      ..onClick = closureXX_1
+      ..onContextMenu = closureXX_2
+      ..onDoubleClick = closureXX_3
+      ..onDrag = closureXX_4
+      ..onDragEnd = closureXX_5
+      ..onDragEnter = closureXX_6
+      ..onDragExit = closureXX_7
+      ..onDragLeave = closureXX_8
+      ..onDragOver = closureXX_9
+    )({
+      'data-storeField1': props.store.storeField1,
+      'data-storeField2': props.store.storeField2,
+      'data-storeField3': props.store.storeField3,
+      'data-storeField4': props.store.storeField4,
+      'data-storeField5': props.store.storeField5,
+      'data-storeField6': props.store.storeField6,
+      'data-storeField7': props.store.storeField7,
+      'data-storeField8': props.store.storeField8,
+      'data-storeField9': props.store.storeField9,
+    }.toString());
+  }
+}
