@@ -13,3 +13,10 @@ dev_dependencies:
   w_flux:
   build_runner: 
   build_web_compilers: 
+
+
+dependency_overrides:
+  over_react:
+    git:
+      url: git@github.com:Workiva/over_react.git
+      ref: v5_wip

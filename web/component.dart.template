@@ -10,13 +10,23 @@ Future<void> mane() {
   // render it
   var actionsXX = FluxActionsXX();
   var storeXX = FluxStoreXX(actionsXX);
-  var compXX = (FluxComponentXX()
-    ..actions = actionsXX
-    ..store = storeXX)();
+
   react_dom.render(
-      ErrorBoundary()(compXX), html.querySelector('#content-container'));
+      ErrorBoundary()(
+        (FluxComponentXXOldBoilerplate()
+          ..actions = actionsXX
+          ..store = storeXX
+        )(),
+        (FluxComponentXX()
+          ..actions = actionsXX
+          ..store = storeXX
+        )(),
+      ), html.querySelector('#content-container'));
 }
 
+class FluxActionsXX {
+  final ActionV2<int> change = ActionV2();
+}
 
 class FluxStoreXX extends Store {
   FluxActionsXX _actions;
@@ -53,9 +63,6 @@ UiFactory<FluxComponentXXProps> FluxComponentXX =
 class FluxComponentXXProps = UiProps
     with FluxUiPropsMixin<FluxActionsXX, FluxStoreXX>;
 
-class FluxActionsXX {
-  final ActionV2<int> change = ActionV2();
-}
 
 class FluxComponentXXComponent extends FluxUiComponent2<FluxComponentXXProps> {
   @override
@@ -94,4 +101,61 @@ class FluxComponentXXComponent extends FluxUiComponent2<FluxComponentXXProps> {
       'data-storeField9': props.store.storeField9,
     }.toString());
   }
+}
+
+
+
+@Factory()
+UiFactory<FluxComponentXXOldBoilerplateProps> FluxComponentXXOldBoilerplate = _$FluxComponentXXOldBoilerplate; // ignore: undefined_identifier, invalid_assignment
+
+@Props()
+class _$FluxComponentXXOldBoilerplateProps extends FluxUiProps<FluxActionsXX, FluxStoreXX> {}
+
+@Component()
+class FluxComponentXXOldBoilerplateComponent extends FluxUiComponent<FluxComponentXXOldBoilerplateProps> {
+  @override
+  Object render() {
+    final closureVariable = props.store.storeField1;
+
+    void closureXX_1(_) => props.actions.change(props.store.storeField1 + closureVariable);
+    void closureXX_2(_) => props.actions.change(props.store.storeField2 + closureVariable);
+    void closureXX_3(_) => props.actions.change(props.store.storeField3 + closureVariable);
+    void closureXX_4(_) => props.actions.change(props.store.storeField4 + closureVariable);
+    void closureXX_5(_) => props.actions.change(props.store.storeField5 + closureVariable);
+    void closureXX_6(_) => props.actions.change(props.store.storeField6 + closureVariable);
+    void closureXX_7(_) => props.actions.change(props.store.storeField7 + closureVariable);
+    void closureXX_8(_) => props.actions.change(props.store.storeField8 + closureVariable);
+    void closureXX_9(_) => props.actions.change(props.store.storeField9 + closureVariable);
+
+    return (Dom.div()
+      ..onClick = closureXX_1
+      ..onContextMenu = closureXX_2
+      ..onDoubleClick = closureXX_3
+      ..onDrag = closureXX_4
+      ..onDragEnd = closureXX_5
+      ..onDragEnter = closureXX_6
+      ..onDragExit = closureXX_7
+      ..onDragLeave = closureXX_8
+      ..onDragOver = closureXX_9
+    )({
+      'data-storeField1': props.store.storeField1,
+      'data-storeField2': props.store.storeField2,
+      'data-storeField3': props.store.storeField3,
+      'data-storeField4': props.store.storeField4,
+      'data-storeField5': props.store.storeField5,
+      'data-storeField6': props.store.storeField6,
+      'data-storeField7': props.store.storeField7,
+      'data-storeField8': props.store.storeField8,
+      'data-storeField9': props.store.storeField9,
+    }.toString());
+  }
+}
+
+// This will be removed once the transition to Dart 2 is complete.
+class FluxComponentXXOldBoilerplateProps extends _$FluxComponentXXOldBoilerplateProps
+    with
+        // ignore: mixin_of_non_class, undefined_class
+        _$FluxComponentXXOldBoilerplatePropsAccessorsMixin {
+  // ignore: const_initialized_with_non_constant_value, undefined_class, undefined_identifier, invalid_assignment
+  static const PropsMeta meta = _$metaForFluxComponentXXOldBoilerplateProps;
 }
