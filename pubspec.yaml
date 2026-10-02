@@ -1,5 +1,5 @@
 name: stress_equals
-description: Demonstrates how overriding equals puts stress on dart2js type inference
+description: Benchmarks dart2js compile time for many classes that share a member name
 version: 1.0.0
 
 environment:
