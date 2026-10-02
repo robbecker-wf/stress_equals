@@ -20,7 +20,16 @@ const variantLabels = {
   'unique-split': 'unique field names + main split up',
   'libs': '== (dynamic other), library per class',
   'private': '== (dynamic other), library per class, private _val',
+  'frugal': 'Frugal-style, as generated today',
+  'frugal-private': 'Frugal-style, internals use private fields and _validate()',
+  'frugal-typed-fmethod': 'Frugal-style, FMethod without Function.apply',
+  'frugal-const': 'Frugal-style, const descriptors and explicit return types',
+  'frugal-lean': 'Frugal-style, no getFieldValue/setFieldValue/isSet/clone/toString',
+  'frugal-helpers': 'Frugal-style, shared list read/write helpers',
+  'frugal-all': 'Frugal-style, all of the above',
 };
+
+bool isFrugal(String variant) => variant.startsWith('frugal');
 
 const _variantColors = {
   'dynamic': '#e15759',
@@ -37,6 +46,13 @@ const _variantColors = {
   'unique-split': '#7570b3',
   'libs': '#d95f02',
   'private': '#66a61e',
+  'frugal': '#e15759',
+  'frugal-private': '#4e79a7',
+  'frugal-typed-fmethod': '#f28e2b',
+  'frugal-const': '#76b7b2',
+  'frugal-lean': '#edc948',
+  'frugal-helpers': '#b07aa1',
+  'frugal-all': '#59a14f',
 };
 
 /// Pairs of variants that differ in exactly one way: [with, without, what the difference is].
@@ -52,6 +68,15 @@ const _experiments = [
   ['unique', 'unique-split', 'A giant <code>main</code> once field names are unique'],
   ['dynamic', 'libs', 'All classes in one library (vs. a library per class, same public field name)'],
   ['libs', 'private', 'A public field name shared across libraries (vs. a private <code>_val</code> per library)'],
+  ['frugal', 'frugal-private', 'Generated internals going through the shared public getters, <code>isSetX()</code> and '
+      '<code>validate()</code> (vs. private fields and <code>_validate()</code>)'],
+  ['frugal', 'frugal-typed-fmethod', '<code>FMethod</code> calling <code>Function.apply</code> on a tear-off (vs. a typed closure)'],
+  ['frugal', 'frugal-const', '<code>static final</code> descriptors, implicit <code>dynamic</code> return types and a new '
+      '<code>DeepCollectionEquality</code> per call (vs. <code>const</code>, explicit types and a shared instance)'],
+  ['frugal', 'frugal-lean', 'Generating <code>getFieldValue</code>, <code>setFieldValue</code>, <code>isSet</code>, '
+      '<code>clone</code> and <code>toString</code> (vs. a lean mode without them)'],
+  ['frugal', 'frugal-helpers', 'Inline list loops in <code>read</code>/<code>write</code> (vs. shared runtime helpers)'],
+  ['frugal', 'frugal-all', 'Frugal output as generated today (vs. all recommended changes together)'],
 ];
 
 /// Scaling exponents are fit over the largest-N quarter of the sweep (falling back to N >= 100 when
@@ -196,17 +221,38 @@ class _Report {
     var compiles = analyses.fold<int>(0, (sum, a) => sum + a.runs.length);
     var html = StringBuffer()
       ..writeln('<!doctype html><html lang="en"><head><meta charset="utf-8">')
-      ..writeln('<title>dart2js compile time vs. == overrides</title>')
+      ..writeln('<title>dart2js compile time vs. generated code shape</title>')
       ..writeln('<style>$_css</style></head><body>')
-      ..writeln('<h1>dart2js compile time vs. number of classes overriding <code>==</code></h1>')
+      ..writeln('<h1>dart2js compile time vs. generated code shape</h1>')
       ..writeln('<p class="meta">${_esc(meta['started'] as String? ?? '')} &middot; '
           'Dart ${_esc((meta['dartVersion'] as String? ?? '').split(' ').first)} &middot; '
           '${_esc(meta['os'] as String? ?? '')} &middot; ${meta['processors']} cores &middot; '
           '$compiles compiles, N = ${allNs.first} to ${allNs.last}</p>')
-      ..writeln('<p>Each generated class has an <code>int</code> field, a <code>hashCode</code> override and a '
-          '<code>toString</code>. The variants differ only in their <code>operator ==</code>: its parameter type, '
-          'or no override at all. Each point is a single compile.</p>');
-    if (analyses.length > 1) html.writeln(_comparison());
+      ..writeln('<p>Each point is a single <code>dart compile js -O3 --csp</code> of a generated program with N '
+          'classes, all instantiated in one <code>main</code>. Variants change one aspect of the generated code; '
+          'see <code>variants</code> in <code>gen.dart</code>.</p>');
+    var synthetic = analyses.where((a) => !isFrugal(a.variant)).toList();
+    var frugal = analyses.where((a) => isFrugal(a.variant)).toList();
+    if (synthetic.length > 1) {
+      html.writeln(_comparison(
+          'Synthetic <code>ZBase_i</code> classes',
+          '<p>Each <code>ZBase_i</code> has an <code>int</code> field plus some combination of <code>==</code>, '
+              '<code>hashCode</code> and <code>toString</code> overrides.</p>',
+          synthetic,
+          _find('plain') ?? _find('none')));
+    }
+    if (frugal.length > 1) {
+      html.writeln(_comparison(
+          'Frugal-style structs',
+          '<p>Each N adds one struct shaped like Frugal&rsquo;s generated Dart (six fields whose names '
+              '<code>id</code>, <code>name</code>, <code>description</code>, <code>count</code>, <code>tags</code> and '
+              '<code>child</code> are shared by every struct; <code>child</code> is the previous struct), in its own '
+              'library, plus a service client calling through <code>FMethod</code>. So N=1000 is 2000 classes. '
+              'The variants apply the generator changes recommended in <code>research/frugal-dart-codegen.md</code>. '
+              '${meta['frugalMaxN'] == null ? '' : 'These stop at N=${meta['frugalMaxN']} because they are much slower to compile.'}</p>',
+          frugal,
+          _find('frugal')));
+    }
     for (var i = 0; i < analyses.length; i++) {
       var a = analyses[i];
       html.writeln('<details${i == 0 ? ' open' : ''}><summary><h2>Breakdown for '
@@ -226,43 +272,44 @@ class _Report {
     return null;
   }
 
-  String _comparison() {
-    var html = StringBuffer('<h2>Comparing variants</h2><ul class="findings">');
-    for (var finding in _comparisonFindings()) {
+  String _comparison(String title, String intro, List<_VariantAnalysis> group, _VariantAnalysis? baseline) {
+    var html = StringBuffer('<h2>Comparing variants: $title</h2>$intro<ul class="findings">');
+    for (var finding in _comparisonFindings(group)) {
       html.write('<li>$finding</li>');
     }
     html.write('</ul>');
-    var n = _commonMaxN();
-    if (n != null) html.write('<h3>Variants ranked at N=$n</h3>${_rankingTable(n)}');
+    var n = _commonMaxN(group);
+    if (n != null) html.write('<h3>Variants ranked at N=$n</h3>${_rankingTable(n, group, baseline)}');
     html
       ..write('<h3>Total compile time by variant</h3>')
-      ..write(_chart([for (var a in analyses) a.totalSeries()]))
+      ..write(_chart([for (var a in group) a.totalSeries()]))
       ..write('<h3>Same data on a log-log scale</h3>')
       ..write('<p>A straight line with slope k means compile time grows as N<sup>k</sup>.</p>')
-      ..write(_chart([for (var a in analyses) a.totalSeries()], log: true))
+      ..write(_chart([for (var a in group) a.totalSeries()], log: true))
       ..write('<h3>Compile time at each N</h3>')
-      ..write(_totalsTable());
+      ..write(_totalsTable(group, baseline));
     if (n != null) {
       html
         ..write('<h3>Phase times at N=$n</h3>')
         ..write('<p>Top-level phases, plus sub-phases that take at least 50 ms in some variant.</p>')
-        ..write(_phaseComparisonTable(n));
+        ..write(_phaseComparisonTable(n, group));
     }
     return html.toString();
   }
 
-  int? _commonMaxN() {
-    var common = analyses.map((a) => a.ns.toSet()).reduce((a, b) => a.intersection(b));
+  int? _commonMaxN(List<_VariantAnalysis> group) {
+    var common = group.map((a) => a.ns.toSet()).reduce((a, b) => a.intersection(b));
     return common.isEmpty ? null : common.reduce(math.max);
   }
 
-  List<String> _comparisonFindings() {
-    var n = _commonMaxN();
+  List<String> _comparisonFindings(List<_VariantAnalysis> group) {
+    var n = _commonMaxN(group);
     if (n == null) return ['The variants have no N in common, so they cannot be compared directly.'];
     var findings = <String>[];
     double total(_VariantAnalysis a) => a.runAt(n)!.totalSeconds;
+    _VariantAnalysis? find(String v) => group.contains(_find(v)) ? _find(v) : null;
 
-    var signatures = [for (var v in const ['dynamic', 'object', 'nullable']) _find(v)].whereType<_VariantAnalysis>().toList();
+    var signatures = [for (var v in const ['dynamic', 'object', 'nullable']) find(v)].whereType<_VariantAnalysis>().toList();
     if (signatures.length >= 2) {
       var sorted = signatures.toList()..sort((a, b) => total(a).compareTo(total(b)));
       var fastest = sorted.first, slowest = sorted.last;
@@ -277,7 +324,7 @@ class _Report {
     }
 
     for (var e in _experiments) {
-      var withIt = _find(e[0]), without = _find(e[1]);
+      var withIt = find(e[0]), without = find(e[1]);
       if (withIt == null || without == null) continue;
       findings.add(_gapFinding(e[2], withIt, without, n));
     }
@@ -312,9 +359,8 @@ class _Report {
         '(${_ratio(gap > 0 ? a.totalSeconds / b.totalSeconds : b.totalSeconds / a.totalSeconds)}) at N=$n $compared.$where$scaling';
   }
 
-  String _rankingTable(int n) {
-    var baseline = _find('plain') ?? _find('none');
-    var sorted = analyses.toList()..sort((a, b) => a.runAt(n)!.totalSeconds.compareTo(b.runAt(n)!.totalSeconds));
+  String _rankingTable(int n, List<_VariantAnalysis> group, _VariantAnalysis? baseline) {
+    var sorted = group.toList()..sort((a, b) => a.runAt(n)!.totalSeconds.compareTo(b.runAt(n)!.totalSeconds));
     var html = StringBuffer('<table><thead><tr><th>Variant</th><th>Compile time at N=$n</th>'
         '${baseline == null ? '' : '<th>vs. ${_esc(_label(baseline.variant))}</th>'}<th>Scaling</th></tr></thead><tbody>');
     for (var a in sorted) {
@@ -328,17 +374,16 @@ class _Report {
     return '$html</tbody></table>';
   }
 
-  String _totalsTable() {
-    var baseline = _find('plain') ?? _find('none');
+  String _totalsTable(List<_VariantAnalysis> group, _VariantAnalysis? baseline) {
     var html = StringBuffer('<table class="compact"><thead><tr><th>N</th>');
-    for (var a in analyses) {
+    for (var a in group) {
       html.write('<th title="${_esc(_label(a.variant))}">${_esc(a.variant)}</th>');
     }
     html.write('</tr></thead><tbody>');
-    for (var n in {for (var a in analyses) ...a.ns}.toList()..sort()) {
+    for (var n in {for (var a in group) ...a.ns}.toList()..sort()) {
       html.write('<tr><td>$n</td>');
       var base = baseline?.runAt(n)?.totalSeconds;
-      for (var a in analyses) {
+      for (var a in group) {
         var t = a.runAt(n)?.totalSeconds;
         html.write(t == null
             ? '<td>&ndash;</td>'
@@ -353,12 +398,12 @@ class _Report {
     return '$html</tbody></table>$note';
   }
 
-  String _phaseComparisonTable(int n) {
-    var runs = [for (var a in analyses) a.runAt(n)!];
+  String _phaseComparisonTable(int n, List<_VariantAnalysis> group) {
+    var runs = [for (var a in group) a.runAt(n)!];
     var names = {for (var r in runs) ...r.phases.keys};
     double maxOf(String p) => runs.map((r) => r.phases[p] ?? 0).reduce(math.max);
     var html = StringBuffer('<table class="compact"><thead><tr><th>Phase</th>');
-    for (var a in analyses) {
+    for (var a in group) {
       html.write('<th title="${_esc(_label(a.variant))}">${_esc(a.variant)}</th>');
     }
     html.write('</tr></thead><tbody>');

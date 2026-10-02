@@ -4,11 +4,16 @@ import 'dart:io';
 import 'bench_report.dart';
 
 const defaultSizes = [
-  1, 10, 25, 50, 100, 250, 500, 750, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7000, //
+  1, 10, 25, 50, 100, 250, 500, 750, 1000, 1500, 2000, 2500, 3000, 4000, //
 ];
 
+/// Frugal-style structs cost about 30x more per class to compile than `ZBase_i`, so their sweep stops
+/// sooner by default.
+const defaultFrugalMaxN = 1000;
+
 /// Usage:
-///   dart tool/bench.dart [--variants="dynamic none"] [sizes...]   Run the sweep, then write the report.
+///   dart tool/bench.dart [--variants="dynamic none"] [--frugal-max=1000] [sizes...]
+///                                         Run the sweep, then write the report.
 ///   dart tool/bench.dart report [dir]     Rebuild the report for an existing run (default: latest).
 Future<void> main(List<String> args) async {
   if (args.isNotEmpty && args.first == 'report') {
@@ -19,9 +24,12 @@ Future<void> main(List<String> args) async {
   }
 
   var variants = variantLabels.keys.toList();
+  var frugalMaxN = defaultFrugalMaxN;
   var sizeArgs = <String>[];
   for (var arg in args) {
-    if (arg.startsWith('--variants=')) {
+    if (arg.startsWith('--frugal-max=')) {
+      frugalMaxN = int.parse(arg.substring('--frugal-max='.length));
+    } else if (arg.startsWith('--variants=')) {
       variants = _split(arg.substring('--variants='.length));
       var unknown = variants.where((v) => !variantLabels.containsKey(v));
       if (unknown.isNotEmpty) {
@@ -43,6 +51,7 @@ Future<void> main(List<String> args) async {
     'processors': Platform.numberOfProcessors,
     'sizes': sizes,
     'variants': variants,
+    'frugalMaxN': frugalMaxN,
   };
   var runs = <Map<String, dynamic>>[];
   var resultsFile = File('${dir.path}/results.json');
@@ -51,7 +60,8 @@ Future<void> main(List<String> args) async {
   // Variants are interleaved at each size so machine slowdowns during the sweep hit them all equally.
   for (var n in sizes) {
     for (var variant in variants) {
-      stdout.write('N=$n ${variant.padRight(9)}: generating... ');
+      if (isFrugal(variant) && n > frugalMaxN) continue;
+      stdout.write('N=$n ${variant.padRight(20)}: generating... ');
       var gen = await Process.run('make', ['--no-print-directory', 'gen', 'N=$n', 'VARIANT=$variant']);
       if (gen.exitCode != 0) _fail('make gen N=$n VARIANT=$variant', gen);
 

@@ -1,0 +1,78 @@
+dart compile js -v -o bin/main.dart.js -O3 --csp bin/main.dart
+Compiler invoked from: 'dart_cli'
+Info: Compiling file:///Users/rob.becker/code/stress_equals/bin/main.dart (3.14.0-edge.25a38e4d0d2a222e4a17311809527a03481f1b41)
+Info: Kernel load complete
+Info: Resolved 734 elements.
+Info: Resolved 0 native elements used, 17 native elements dead.
+Info: Performing global type inference
+Info: Added 734 elements in inferencing graph.
+Info: Inferred 11006 types.
+Info: Compiling methods
+Info: Compiled 334 methods.
+Info: Compiled 0 native classes, 0 native classes omitted.
+Info: Emitting JavaScript
+Info: Timings:
+    Enqueue:                                                  0.010s  (3.0%)
+    Enqueue > resolution.staticUse:                           0.001s  (0.3%)
+    Enqueue > resolution.typeUse:                             0.005s  (1.5%)
+    Enqueue > resolution.dynamicUse:                          0.001s  (0.3%)
+    Enqueue > codegen.staticUse:                              0.000s  (0.0%)
+    Enqueue > codegen.typeUse:                                0.000s  (0.0%)
+    Enqueue > codegen.constantUse:                            0.000s  (0.0%)
+    Enqueue > codegen.dynamicUse:                             0.000s  (0.0%)
+    kernel loader:                                            0.142s (42.9%)
+    Front end:                                                0.010s  (3.0%)
+    Front end > closures:                                     0.001s  (0.3%)
+    Front end > worldImpact:                                  0.007s  (2.1%)
+    Type inference:                                           0.034s (10.3%)
+    Deferred Loading:                                         0.000s  (0.0%)
+    Deferred Loading > prepare:                               0.000s  (0.0%)
+    Deferred Loading > apply set transitions:                 0.000s  (0.0%)
+    self:                                                     0.039s (11.8%)
+   *self > run:                                               0.000s  (0.0%)
+    self > compileFromKernel:                                 0.032s  (9.7%)
+    self > processQueue:                                      0.000s  (0.0%)
+    self > emptyQueue:                                        0.000s  (0.0%)
+    self > applyImpact:                                       0.002s  (0.6%)
+    self > work.run:                                          0.002s  (0.6%)
+    SSA builder:                                              0.033s  (10.0%)
+    SSA optimizer:                                            0.020s  (6.0%)
+    SSA optimizer > SsaInstructionSimplifier:                 0.005s  (1.5%)
+    SSA optimizer > SsaTypeConversionInserter:                0.000s  (0.0%)
+    SSA optimizer > SsaRedundantPhiEliminator:                0.000s  (0.0%)
+    SSA optimizer > SsaDeadPhiEliminator:                     0.000s  (0.0%)
+    SSA optimizer > SsaTypePropagator:                        0.003s  (0.9%)
+    SSA optimizer > SsaDeadCodeEliminator:                    0.001s  (0.3%)
+    SSA optimizer > SsaGlobalValueNumberer:                   0.000s  (0.0%)
+    SSA optimizer > SsaCodeMotion:                            0.000s  (0.0%)
+    SSA optimizer > SsaLoadElimination:                       0.002s  (0.6%)
+    SSA optimizer > SsaLateFieldOptimizer:                    0.000s  (0.0%)
+    SSA optimizer > SsaValueRangeAnalyzer:                    0.001s  (0.3%)
+    SSA optimizer > SsaSimplifyInterceptors:                  0.000s  (0.0%)
+    SSA optimizer > SsaFinalizeInterceptors:                  0.000s  (0.0%)
+    SSA code generator:                                       0.014s  (4.2%)
+    SSA code generator > SsaTrustedLateCheckRemover:          0.000s  (0.0%)
+    SSA code generator > SsaInstructionSelection:             0.000s  (0.0%)
+    SSA code generator > SsaTypeKnownRemover:                 0.000s  (0.0%)
+    SSA code generator > SsaTrustedPrimitiveCheckRemover:     0.000s  (0.0%)
+    SSA code generator > SsaAssignmentChaining:               0.000s  (0.0%)
+    SSA code generator > SsaInstructionMerger:                0.001s  (0.3%)
+    SSA code generator > SsaConditionMerger:                  0.000s  (0.0%)
+    SSA code generator > SsaPhiConditioning:                  0.000s  (0.0%)
+    SSA code generator > SsaShareRegionConstants:             0.000s  (0.0%)
+    SSA code generator > SsaLiveIntervalBuilder:              0.003s  (0.9%)
+    SSA code generator > SsaVariableAllocator:                0.004s  (1.2%)
+    Code emitter:                                             0.023s  (6.9%)
+    Code emitter > finalize rti:                              0.000s  (0.0%)
+    Code emitter > build program:                             0.003s  (0.9%)
+    Code emitter > emit program:                              0.004s  (1.2%)
+    Code emitter > emit prefragments:                         0.000s  (0.0%)
+    Code emitter > write fragments:                           0.007s  (2.1%)
+    Code emitter > source-maps:                               0.006s  (1.8%)
+    Code emitter > emit buffers:                              0.000s  (0.0%)
+    Diagnostic handler:                                       0.000s  (0.0%)
+    Total compile-time 0.331s; setup 0.000s; async 0.000s; unaccounted 0.001s (0.30%)
+Compiled 10,872,754 input bytes (5,382,878 characters source) to 41,124 characters JavaScript in 0.33 seconds
+Info: 41,124 characters JavaScript in bin/main.dart.js
+Dart file bin/main.dart compiled to JavaScript: bin/main.dart.js
+Emitted file 1 JavaScript files.

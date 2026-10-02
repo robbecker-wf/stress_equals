@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'gen_frugal.dart';
+
 var classesFile = File('lib/src/classes.dart');
 var mainFile = File('bin/main.dart');
 var classesDir = Directory('lib/src/classes');
@@ -15,7 +17,12 @@ class Variant {
     this.splitMain = false,
     this.libraryPerClass = false,
     this.privateField = false,
+    this.frugal,
   });
+
+  /// Generates Frugal-style structs and service clients instead of `ZBase_i` classes; the other
+  /// options are ignored.
+  final Frugal? frugal;
 
   /// Parameter type of the generated `operator ==`; `null` means no override.
   final String? equalsParamType;
@@ -58,6 +65,14 @@ const variants = {
   'unique-split': Variant(uniqueFieldNames: true, splitMain: true),
   'libs': Variant(libraryPerClass: true),
   'private': Variant(libraryPerClass: true, privateField: true),
+  'frugal': Variant(frugal: Frugal()),
+  'frugal-private': Variant(frugal: Frugal(privateInternals: true)),
+  'frugal-typed-fmethod': Variant(frugal: Frugal(typedFMethod: true)),
+  'frugal-const': Variant(frugal: Frugal(constAndTyped: true)),
+  'frugal-lean': Variant(frugal: Frugal(lean: true)),
+  'frugal-helpers': Variant(frugal: Frugal(sharedHelpers: true)),
+  'frugal-all': Variant(
+      frugal: Frugal(privateInternals: true, typedFMethod: true, constAndTyped: true, lean: true, sharedHelpers: true)),
 };
 
 void main(List<String> args) {
@@ -83,6 +98,7 @@ void deleteOldFiles() {
 }
 
 void generateNewFiles(int num, Variant variant) {
+  if (variant.frugal != null) return generateFrugal(num, variant.frugal!, classesDir, classesFile, mainFile);
   var base = variant.fieldInBase ? 'class ZBase {\n  int val;\n  ZBase(this.val);\n}' : 'class ZBase {}';
   var library = StringBuffer();
   if (variant.libraryPerClass) {

@@ -44,8 +44,8 @@ try: ## Generate and compile the benchmark (make try [n] [VARIANT=...], n defaul
 	$(MAKE) compile
 
 .PHONY: bench
-bench: ## Compile every variant at N from 1 to 7000 and write an HTML report to bench_results/ (override with SIZES="1 100" VARIANTS="dynamic none")
-	dart tool/bench.dart $(if $(VARIANTS),--variants="$(VARIANTS)") $(SIZES)
+bench: ## Compile every variant at N from 1 to 4000 (frugal-* to 1000) and write an HTML report to bench_results/ (override with SIZES="1 100" VARIANTS="dynamic none" FRUGAL_MAX=2000)
+	dart tool/bench.dart $(if $(VARIANTS),--variants="$(VARIANTS)") $(if $(FRUGAL_MAX),--frugal-max=$(FRUGAL_MAX)) $(SIZES)
 
 .PHONY: report
 report: ##VERBOSE Rebuild the HTML report for the latest bench run (RESULTS=bench_results/<run> for another)
