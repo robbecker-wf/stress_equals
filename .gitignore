@@ -23,5 +23,3 @@ doc/api/
 bin/main.dart.js
 bin/main.dart.js.deps
 bin/main.dart.js.map
-
-web/component*.dart
