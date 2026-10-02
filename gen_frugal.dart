@@ -5,7 +5,9 @@ import 'dart:io';
 class Frugal {
   const Frugal({
     this.privateInternals = false,
+    this.publicValidate = false,
     this.typedFMethod = false,
+    this.constDeepEquality = false,
     this.constAndTyped = false,
     this.lean = false,
     this.sharedHelpers = false,
@@ -15,8 +17,15 @@ class Frugal {
   /// public getters, `isSetX()` and `validate()` that every struct shares the names of.
   final bool privateInternals;
 
+  /// With [privateInternals], `read`/`write` still call the public `validate()`, so subclasses that
+  /// override it keep working.
+  final bool publicValidate;
+
   /// `FMethod` takes a typed closure instead of calling `Function.apply` on a tear-off.
   final bool typedFMethod;
+
+  /// `==` and `hashCode` use `const DeepCollectionEquality()` instead of allocating one per call.
+  final bool constDeepEquality;
 
   /// Field descriptors are `static const`, generated members have explicit return types, and
   /// `DeepCollectionEquality` is a shared const instead of being allocated on every call.
@@ -242,8 +251,13 @@ String _struct(int i, Frugal f) {
   String assign(_Field x, String value) => p
       ? (x.usesIssetFlag ? 'this._${x.name} = $value; this.__isset_${x.name} = true;' : 'this._${x.name} = $value;')
       : 'this.${x.name} = $value;';
-  var deepEq = typed ? '_deepEquality' : 'thrift.DeepCollectionEquality()';
-  var validate = p ? '_validate' : 'validate';
+  var deepEq = typed
+      ? '_deepEquality'
+      : f.constDeepEquality
+          ? 'const thrift.DeepCollectionEquality()'
+          : 'thrift.DeepCollectionEquality()';
+  var privateValidate = p && !f.publicValidate;
+  var validate = privateValidate ? '_validate' : 'validate';
 
   var sb = StringBuffer("import 'thrift.dart' as thrift;\n");
   if (i > 0) sb.writeln("import 'struct_${i - 1}.dart' as t_prev;");
@@ -430,7 +444,7 @@ String _struct(int i, Frugal f) {
     sb.writeln('  $name clone({$params}) {\n    return $name()$cascades;\n  }\n');
   }
 
-  if (p) sb.writeln('  ${rt('void')}validate() => _validate();\n');
+  if (privateValidate) sb.writeln('  ${rt('void')}validate() => _validate();\n');
   sb.writeln('  ${rt('void')}$validate() {\n    // check for required fields');
   for (var x in fields.where((x) => x.required)) {
     sb.writeln("    if (${get(x)} == null) {\n      throw thrift.TProtocolError(\"Required field '${x.name}' wasn't present in the struct $name\");\n    }");

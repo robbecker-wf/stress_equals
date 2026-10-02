@@ -67,6 +67,8 @@ const variants = {
   'private': Variant(libraryPerClass: true, privateField: true),
   'frugal': Variant(frugal: Frugal()),
   'frugal-private': Variant(frugal: Frugal(privateInternals: true)),
+  'frugal-private-fields': Variant(frugal: Frugal(privateInternals: true, publicValidate: true)),
+  'frugal-safe': Variant(frugal: Frugal(privateInternals: true, publicValidate: true, constDeepEquality: true)),
   'frugal-typed-fmethod': Variant(frugal: Frugal(typedFMethod: true)),
   'frugal-const': Variant(frugal: Frugal(constAndTyped: true)),
   'frugal-lean': Variant(frugal: Frugal(lean: true)),
