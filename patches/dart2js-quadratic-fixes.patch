@@ -1,0 +1,447 @@
+diff --git a/pkg/compiler/lib/src/inferrer/abstract_value_domain.dart b/pkg/compiler/lib/src/inferrer/abstract_value_domain.dart
+index acd2f27..2b05cee 100644
+--- a/pkg/compiler/lib/src/inferrer/abstract_value_domain.dart
++++ b/pkg/compiler/lib/src/inferrer/abstract_value_domain.dart
+@@ -597,6 +597,14 @@ mixin AbstractValueDomain {
+     Name name,
+   );
+ 
++  /// Returns a superset of the members for which [isTargetingMember] can be
++  /// potentially true for [receiver] and [name], or `null` if no such set can
++  /// be computed cheaply.
++  Iterable<MemberEntity>? potentialTargetsOf(
++    AbstractValue receiver,
++    Name name,
++  ) => null;
++
+   /// Returns an [AbstractBool] that describes whether [selector] invoked on a
+   /// [receiver] can hit a [noSuchMethod].
+   AbstractBool needsNoSuchMethodHandling(
+diff --git a/pkg/compiler/lib/src/inferrer/computable.dart b/pkg/compiler/lib/src/inferrer/computable.dart
+index a7e341a..4d396bc 100644
+--- a/pkg/compiler/lib/src/inferrer/computable.dart
++++ b/pkg/compiler/lib/src/inferrer/computable.dart
+@@ -616,6 +616,12 @@ class ComputableAbstractValueDomain with AbstractValueDomain {
+     Name name,
+   ) => _wrappedDomain.isTargetingMember(_unwrap(receiver), member, name);
+ 
++  @override
++  Iterable<MemberEntity>? potentialTargetsOf(
++    covariant ComputableAbstractValue receiver,
++    Name name,
++  ) => _wrappedDomain.potentialTargetsOf(_unwrap(receiver), name);
++
+   @override
+   AbstractBool needsNoSuchMethodHandling(
+     covariant ComputableAbstractValue receiver,
+diff --git a/pkg/compiler/lib/src/inferrer/typemasks/masks.dart b/pkg/compiler/lib/src/inferrer/typemasks/masks.dart
+index efe0ad0..2d3c902 100644
+--- a/pkg/compiler/lib/src/inferrer/typemasks/masks.dart
++++ b/pkg/compiler/lib/src/inferrer/typemasks/masks.dart
+@@ -873,6 +873,39 @@ class CommonMasks with AbstractValueDomain {
+     return AbstractBool.maybeOrFalse(receiver.canHit(member, name, this));
+   }
+ 
++  @override
++  Iterable<MemberEntity>? potentialTargetsOf(
++    covariant TypeMask receiver,
++    Name name,
++  ) {
++    TypeMask mask = receiver;
++    while (mask is ForwardingTypeMask) {
++      mask = mask.forwardTo;
++    }
++    if (mask is! FlatTypeMask || mask.isEmptyOrSpecial || !mask.isExact) {
++      return null;
++    }
++    // [FlatTypeMask.canHit] on an exact mask only accepts members of `JSNull`
++    // and the first concrete member found by [JClosedWorld.hasElementIn].
++    final elementEnvironment = closedWorld.elementEnvironment;
++    final targets = <MemberEntity>[];
++    final jsNullMember = elementEnvironment.lookupLocalClassMember(
++      commonElements.jsNullClass,
++      name,
++    );
++    if (jsNullMember != null) targets.add(jsNullMember);
++    ClassEntity? current = mask.base;
++    while (current != null) {
++      final member = elementEnvironment.lookupLocalClassMember(current, name);
++      if (member != null && !member.isAbstract) {
++        if (member != jsNullMember) targets.add(member);
++        break;
++      }
++      current = elementEnvironment.getSuperClass(current);
++    }
++    return targets;
++  }
++
+   @override
+   AbstractBool needsNoSuchMethodHandling(
+     covariant TypeMask receiver,
+diff --git a/pkg/compiler/lib/src/ssa/optimize.dart b/pkg/compiler/lib/src/ssa/optimize.dart
+index aae3fd2..226a430 100644
+--- a/pkg/compiler/lib/src/ssa/optimize.dart
++++ b/pkg/compiler/lib/src/ssa/optimize.dart
+@@ -4785,6 +4785,11 @@ class MemorySet {
+   >
+   fieldValues = {};
+ 
++  /// The entries of [fieldValues] for fields that are not [isFinal]. These are
++  /// the only entries that can be killed by side effects.
++  final Map<Object, Map<HInstruction?, HInstruction?>> _mutableFieldValues =
++      {};
++
+   /// Maps a receiver to a map of keys to value.
+   final Map<HInstruction, Map<HInstruction, HInstruction?>> keyedValues = {};
+ 
+@@ -4819,6 +4824,20 @@ class MemorySet {
+     return element is MemberEntity && closedWorld.fieldNeverChanges(element);
+   }
+ 
++  Map<HInstruction?, HInstruction?> _fieldValuesFor(Object field) {
++    return fieldValues[field] ??= _addFieldValues(field, {}, isFinal(field));
++  }
++
++  Map<HInstruction?, HInstruction?> _addFieldValues(
++    Object field,
++    Map<HInstruction?, HInstruction?> values,
++    bool isFinal,
++  ) {
++    fieldValues[field] = values;
++    if (!isFinal) _mutableFieldValues[field] = values;
++    return values;
++  }
++
+   bool isConcrete(HInstruction? instruction) {
+     return instruction is HCreate ||
+         instruction is HConstant ||
+@@ -4885,7 +4904,7 @@ class MemorySet {
+     // [value] is being set in some place in memory, we remove it from the
+     // non-escaping set.
+     nonEscapingReceivers.remove(value.nonCheck());
+-    final map = fieldValues.putIfAbsent(field, () => {});
++    final map = _fieldValuesFor(field);
+     bool isRedundant = map[receiver] == value;
+     map.forEach((key, value) {
+       if (mayAlias(receiver, key)) map[key] = null;
+@@ -4908,7 +4927,7 @@ class MemorySet {
+     if (field is MemberEntity && closedWorld.nativeData.isNativeMember(field)) {
+       return; // TODO(14955): Remove this restriction?
+     }
+-    final map = fieldValues.putIfAbsent(field, () => {});
++    final map = _fieldValuesFor(field);
+     map[receiver] = value;
+   }
+ 
+@@ -4942,8 +4961,7 @@ class MemorySet {
+       List<HInstruction?> receiversToRemove = [];
+ 
+       List<Object>? fieldsToRemove;
+-      fieldValues.forEach((Object element, map) {
+-        if (isFinal(element)) return;
++      _mutableFieldValues.forEach((Object element, map) {
+         map.forEach((receiver, value) {
+           if (escapes(receiver)) {
+             receiversToRemove.add(receiver);
+@@ -4957,7 +4975,10 @@ class MemorySet {
+         }
+         receiversToRemove.clear();
+       });
+-      fieldsToRemove?.forEach(fieldValues.remove);
++      fieldsToRemove?.forEach((element) {
++        fieldValues.remove(element);
++        _mutableFieldValues.remove(element);
++      });
+     }
+ 
+     if (instruction.sideEffects.changesIndex()) {
+@@ -5181,7 +5202,11 @@ class MemorySet {
+     MemorySet result = MemorySet(closedWorld);
+ 
+     fieldValues.forEach((element, values) {
+-      result.fieldValues[element] = Map.of(values);
++      result._addFieldValues(
++        element,
++        Map.of(values),
++        !_mutableFieldValues.containsKey(element),
++      );
+     });
+ 
+     keyedValues.forEach((receiver, values) {
+diff --git a/pkg/compiler/lib/src/universe/class_hierarchy.dart b/pkg/compiler/lib/src/universe/class_hierarchy.dart
+index 0683424..5754dfd 100644
+--- a/pkg/compiler/lib/src/universe/class_hierarchy.dart
++++ b/pkg/compiler/lib/src/universe/class_hierarchy.dart
+@@ -815,6 +815,42 @@ class ClassHierarchyBuilder {
+         _InheritedInSubtypeCache();
+     return cache.isInheritedInSubtypeOf(this, x, y);
+   }
++
++  /// Returns a superset of the classes `x` for which a dynamic access with
++  /// receiver constraint [y] can currently hit a member declared in `x`, that
++  /// is, `Null`, `JSNull`, and the superclasses and mixins of the explicitly
++  /// instantiated subtypes of [y].
++  ///
++  /// Returns `null` if [y] has more than [limit] explicitly instantiated
++  /// subtypes, in which case the caller should test all candidates instead.
++  Set<ClassEntity>? potentialHoldersOfMembersInheritedInSubtypeOf(
++    ClassEntity y, {
++    required int limit,
++  }) {
++    final classSet = _classSets[y];
++    if (classSet == null) return null;
++    final holders = <ClassEntity>{
++      _commonElements.nullClass,
++      _commonElements.jsNullClass,
++    };
++    final visited = <ClassEntity>{};
++    int count = 0;
++    for (final cls in classSet.subtypesByMask(
++      ClassHierarchyNode.explicitlyInstantiated,
++    )) {
++      if (++count > limit) return null;
++      ClassEntity? current = cls;
++      while (current != null && visited.add(current)) {
++        holders.add(current);
++        ClassEntity? mixin = _elementMap.getAppliedMixin(current as JClass);
++        while (mixin != null && holders.add(mixin)) {
++          mixin = _elementMap.getAppliedMixin(mixin as JClass);
++        }
++        current = _elementMap.getSuperClass(current);
++      }
++    }
++    return holders;
++  }
+ }
+ 
+ /// Cache used for computing when a member of a given class, the so-called
+diff --git a/pkg/compiler/lib/src/universe/function_set.dart b/pkg/compiler/lib/src/universe/function_set.dart
+index 54e73c1..865bd8f 100644
+--- a/pkg/compiler/lib/src/universe/function_set.dart
++++ b/pkg/compiler/lib/src/universe/function_set.dart
+@@ -165,6 +165,7 @@ class FunctionSetNode {
+         set.add(element);
+       }
+       if (cache.isNotEmpty) cache.clear();
++      _positions = null;
+     }
+   }
+ 
+@@ -178,6 +179,7 @@ class FunctionSetNode {
+         list[index] = last;
+       }
+       if (cache.isNotEmpty) cache.clear();
++      _positions = null;
+     } else {
+       final set = elements as List<MemberEntity>;
+       if (set.remove(element)) {
+@@ -185,6 +187,7 @@ class FunctionSetNode {
+         // not transition back to the list representation even if we
+         // end up with few enough elements at this point.
+         if (cache.isNotEmpty) cache.clear();
++        _positions = null;
+       }
+     }
+   }
+@@ -208,8 +211,17 @@ class FunctionSetNode {
+     FunctionSetQuery? result = cache[selectorMask];
+     if (result != null) return result;
+ 
++    Iterable<MemberEntity> candidates = elements;
++    if (!isList) {
++      final targets = domain.potentialTargetsOf(
++        selectorMask.receiver,
++        selectorMask.selector.memberName,
++      );
++      if (targets != null) candidates = _inElementOrder(targets);
++    }
++
+     Setlet<MemberEntity>? functions;
+-    for (MemberEntity element in elements) {
++    for (MemberEntity element in candidates) {
+       if (selectorMask._applies(element, domain)) {
+         // Defer the allocation of the functions set until we are
+         // sure we need it. This allows us to return immutable empty
+@@ -241,6 +253,19 @@ class FunctionSetNode {
+     return result;
+   }
+ 
++  /// The position of each element in [elements], computed on demand.
++  Map<MemberEntity, int>? _positions;
++
++  /// Returns the members of [targets] that are in [elements], in the order
++  /// they occur in [elements].
++  List<MemberEntity> _inElementOrder(Iterable<MemberEntity> targets) {
++    final positions = _positions ??= {
++      for (final (i, element) in elements.indexed) element: i,
++    };
++    return targets.where(positions.containsKey).toList()
++      ..sort((a, b) => positions[a]!.compareTo(positions[b]!));
++  }
++
+   @override
+   String toString() {
+     StringBuffer sb = StringBuffer();
+diff --git a/pkg/compiler/lib/src/universe/resolution_world_builder.dart b/pkg/compiler/lib/src/universe/resolution_world_builder.dart
+index f42bc3e..6954854 100644
+--- a/pkg/compiler/lib/src/universe/resolution_world_builder.dart
++++ b/pkg/compiler/lib/src/universe/resolution_world_builder.dart
+@@ -229,15 +229,15 @@ class ResolutionWorldBuilder extends WorldBuilder implements World {
+   ///
+   /// A method is fully invoked if all is optional parameter have been passed
+   /// in some invocation.
+-  final Map<String, Set<MemberUsage>> _invokableInstanceMembersByName = {};
++  final Map<String, _PendingMemberUsages> _invokableInstanceMembersByName = {};
+ 
+   /// Map containing instance members of live classes that have not yet been
+   /// read from dynamically.
+-  final Map<String, Set<MemberUsage>> _readableInstanceMembersByName = {};
++  final Map<String, _PendingMemberUsages> _readableInstanceMembersByName = {};
+ 
+   /// Map containing instance members of live classes that have not yet been
+   /// written to dynamically.
+-  final Map<String, Set<MemberUsage>> _writableInstanceMembersByName = {};
++  final Map<String, _PendingMemberUsages> _writableInstanceMembersByName = {};
+ 
+   final Set<FieldEntity> _fieldSetters = {};
+ 
+@@ -471,11 +471,23 @@ class ResolutionWorldBuilder extends WorldBuilder implements World {
+     String methodName = selector.name;
+ 
+     void process(
+-      Map<String, Set<MemberUsage>> memberMap,
++      Map<String, _PendingMemberUsages> memberMap,
+       EnumSet<MemberUse> Function(MemberUsage usage) action,
+       bool Function(MemberUsage usage) shouldBeRemoved,
+     ) {
+-      _processSet(memberMap, methodName, (MemberUsage usage) {
++      final pending = memberMap[methodName];
++      if (pending == null) return;
++      final constraint = dynamicUse.receiverConstraint as ClassEntity?;
++      // Only members declared in a superclass (or mixin) of a live subtype of
++      // [constraint] can be hit, so when there are few such subtypes we avoid
++      // testing every pending member with this name.
++      final holders = constraint == null
++          ? null
++          : classHierarchyBuilder.potentialHoldersOfMembersInheritedInSubtypeOf(
++              constraint,
++              limit: pending.concreteCount,
++            );
++      pending.update(holders, (MemberUsage usage) {
+         if (usage.entity.isAbstract ||
+             selector.appliesUnnamed(usage.entity) &&
+                 (_selectorConstraintsStrategy.appliedUnnamed(
+@@ -773,29 +785,6 @@ class ResolutionWorldBuilder extends WorldBuilder implements World {
+     });
+   }
+ 
+-  /// Call [updateUsage] on all [MemberUsage]s in the set in [map] for
+-  /// [memberName]. If [updateUsage] returns `true` the usage is removed from
+-  /// the set.
+-  void _processSet(
+-    Map<String, Set<MemberUsage>> map,
+-    String memberName,
+-    bool Function(MemberUsage e) updateUsage,
+-  ) {
+-    Set<MemberUsage>? members = map[memberName];
+-    if (members == null) return;
+-    // [f] might add elements to [: map[memberName] :] during the loop below
+-    // so we create a new list for [: map[memberName] :] and prepend the
+-    // [remaining] members after the loop.
+-    map[memberName] = {};
+-    Set<MemberUsage> remaining = {};
+-    for (MemberUsage usage in members) {
+-      if (!updateUsage(usage)) {
+-        remaining.add(usage);
+-      }
+-    }
+-    map[memberName]!.addAll(remaining);
+-  }
+-
+   (MemberUsage, EnumSet<MemberUse>) _getMemberUsage(
+     MemberEntity member, {
+     bool checkEnqueuerConsistency = false,
+@@ -856,17 +845,17 @@ class ResolutionWorldBuilder extends WorldBuilder implements World {
+         if (!checkEnqueuerConsistency) {
+           if (usage.hasPendingDynamicInvoke) {
+             _invokableInstanceMembersByName
+-                .putIfAbsent(memberName, () => {})
++                .putIfAbsent(memberName, _PendingMemberUsages.new)
+                 .add(usage);
+           }
+           if (usage.hasPendingDynamicRead) {
+             _readableInstanceMembersByName
+-                .putIfAbsent(memberName, () => {})
++                .putIfAbsent(memberName, _PendingMemberUsages.new)
+                 .add(usage);
+           }
+           if (usage.hasPendingDynamicWrite) {
+             _writableInstanceMembersByName
+-                .putIfAbsent(memberName, () => {})
++                .putIfAbsent(memberName, _PendingMemberUsages.new)
+                 .add(usage);
+           }
+         }
+@@ -1138,3 +1127,62 @@ class ResolutionWorldBuilder extends WorldBuilder implements World {
+     return closedWorld;
+   }
+ }
++
++/// The [MemberUsage]s for members of a given name that still have pending
++/// dynamic uses, indexed by the class declaring the member.
++class _PendingMemberUsages {
++  /// Abstract members are hit by any selector with a matching name, so they
++  /// are not indexed by class.
++  final Set<MemberUsage> _abstractUsages = {};
++
++  final Map<ClassEntity, Set<MemberUsage>> _concreteUsagesByClass = {};
++
++  int _concreteCount = 0;
++
++  /// The number of pending usages of non-abstract members.
++  int get concreteCount => _concreteCount;
++
++  void add(MemberUsage usage) {
++    if (usage.entity.isAbstract) {
++      _abstractUsages.add(usage);
++    } else if ((_concreteUsagesByClass[usage.entity.enclosingClass!] ??= {})
++        .add(usage)) {
++      _concreteCount++;
++    }
++  }
++
++  void remove(MemberUsage usage) {
++    if (usage.entity.isAbstract) {
++      _abstractUsages.remove(usage);
++      return;
++    }
++    final cls = usage.entity.enclosingClass!;
++    final usages = _concreteUsagesByClass[cls];
++    if (usages != null && usages.remove(usage)) {
++      _concreteCount--;
++      if (usages.isEmpty) _concreteUsagesByClass.remove(cls);
++    }
++  }
++
++  /// Calls [updateUsage] on the pending usages and removes those for which it
++  /// returns `true`.
++  ///
++  /// If [holders] is non-null, only concrete members declared in one of the
++  /// [holders] classes are visited. Abstract members are always visited.
++  void update(
++    Iterable<ClassEntity>? holders,
++    bool Function(MemberUsage usage) updateUsage,
++  ) {
++    // [updateUsage] might add usages to this set, so iterate over a snapshot.
++    final List<MemberUsage> candidates = [
++      ..._abstractUsages,
++      if (holders == null)
++        for (final usages in _concreteUsagesByClass.values) ...usages
++      else
++        for (final cls in holders) ...?_concreteUsagesByClass[cls],
++    ];
++    for (final usage in candidates) {
++      if (updateUsage(usage)) remove(usage);
++    }
++  }
++}
